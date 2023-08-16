@@ -6,7 +6,7 @@
 
 int main() {
     char buffer[BUFFER_SIZE]; // 4096바이트를 저장할 수 있는 버퍼를 선언합니다.
-    int file = open("test.txt", O_RDONLY); // 파일을 열고, 파일 디스크립터를 가져옵니다.
+    int file = open("tmp.txt", O_RDONLY); // 파일을 열고, 파일 디스크립터를 가져옵니다.
     
     if(file < 0){
         perror("open"); // 파일을 열지 못한 경우, 에러 메시지를 출력합니다.
