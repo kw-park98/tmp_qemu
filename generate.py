@@ -20,4 +20,5 @@ def fill_file_with_random_numbers(file_path, file_size_MB):
             f.write(random_str)
 
 if __name__ == "__main__":
-    fill_file_with_random_numbers('tmp.txt', 50)
+#1g -> 1024
+    fill_file_with_random_numbers('tmp.txt', 1024 * 1)

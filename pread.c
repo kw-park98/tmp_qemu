@@ -1,4 +1,4 @@
-#include <stdio.h>
+i#include <stdio.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -8,14 +8,17 @@
 #include <stdatomic.h>
 
 
-#define MYOPEN 548
-#define MYCALL 549
+#define MYOPEN 2
+#define MYCALL 17
 
+#define TIME 2
 
 #define PAGE_SIZE (4096)
-#define NPAGE (1)
 
-#define OFFSET (1 * PAGE_SIZE)
+//1024 -> 4mb
+#define NPAGE (1024 * 64)
+
+#define OFFSET (0 * PAGE_SIZE)
 #define LENGTH (PAGE_SIZE * NPAGE)
 
 #define NTHREAD 3
@@ -24,6 +27,8 @@ atomic_int start_read;
 atomic_int stop_read;
 
 const char *fname = "tmp.txt";
+const char *cname = "compare.txt";
+
 char prefetch[LENGTH];
 char buf[NTHREAD][LENGTH];
 int count[NTHREAD];
@@ -32,7 +37,7 @@ int count[NTHREAD];
 typedef struct {
 	int tid;
 	off_t offset;
-	size_t length; 	
+	size_t length;	
 } ThreadArgs;
 
 int bufEqual() {
@@ -45,21 +50,19 @@ int bufEqual() {
   return 1;
 }
 
-void copy_buf() {
-	for(int i=0; i<LENGTH; i++) {
-		prefetch[i] = buf[0][i];
-	}
-}
-
 void *thread_fn(void *args) {
 	int iter = 0;
   ThreadArgs* threadArg = (ThreadArgs*)args;
-	int file = open(fname, O_RDONLY, S_IRWXU);
+	// this system call -paygo_open- tells the system 
+	// that this file has been applied paygo reference counting.
+	int file = syscall(MYOPEN, fname, O_RDONLY, S_IRWXU);
 
 	while(!atomic_load(&start_read));	
 
 	while(!atomic_load(&stop_read)) {
-		unsigned int x = pread(file, buf[threadArg->tid], threadArg->length, threadArg->offset);
+		// this system call -paygo_pread- using paygo reference counting method
+		// instead of the linux's reference count(folio_try_get_rcu)
+		unsigned int x = syscall(MYCALL, file, buf[threadArg->tid], threadArg->length, threadArg->offset);
 		iter++;
 		if(x != PAGE_SIZE * NPAGE) {
        perror("myread");
@@ -73,17 +76,15 @@ void *thread_fn(void *args) {
 int main(int argc, char **argv) {
 	//pre-wrok
 	// 0. memset the bufs.
-	// 1. open the file.
-	// 2. set start_read & stop_read flags.
+	// 1. set start_read & stop_read flags.
 	memset(prefetch, 0, LENGTH);
 	for(int i=0; i<NTHREAD; i++) {
 		memset(buf[i], 0, LENGTH);
 	}	
-	int file = open(fname, O_RDONLY, S_IRWXU);
-	pread(file, prefetch, LENGTH, OFFSET); 
+	int cfile = open(cname, O_RDONLY, S_IRWXU);
+	pread(cfile, prefetch, LENGTH, OFFSET); 
 	start_read = 0;
 	stop_read = 0;
-	printf("%s\n", prefetch);
 	printf("pre-work step complete!\n");
 
 	pthread_t threads[NTHREAD];
@@ -101,7 +102,7 @@ int main(int argc, char **argv) {
 	// start!
 	__sync_fetch_and_add(&start_read, 1);
 	// sleep for thread working
-	sleep(5);
+	sleep(TIME);
 	// stop!
 	__sync_fetch_and_add(&stop_read, 1);
 
@@ -109,6 +110,7 @@ int main(int argc, char **argv) {
 		pthread_join(threads[i], NULL);
 	}
 	
+	// check to make sure we've read the right data through paygo reference counting
 	if(bufEqual()) {
 		printf("test clear!\n");
 	} else {
@@ -122,6 +124,6 @@ int main(int argc, char **argv) {
 
 	// tear down
 	// close the file opened at prefeteching step.
-	close(file);
+	close(cfile);
 	return 0;
 }
