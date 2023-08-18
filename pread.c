@@ -1,4 +1,4 @@
-i#include <stdio.h>
+#include <stdio.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -7,27 +7,11 @@ i#include <stdio.h>
 #include <string.h>
 #include <stdatomic.h>
 
-
-#define MYOPEN 2
-#define MYCALL 17
-
-#define TIME 2
-
-#define PAGE_SIZE (4096)
-
-//1024 -> 4mb
-#define NPAGE (1024 * 64)
-
-#define OFFSET (0 * PAGE_SIZE)
-#define LENGTH (PAGE_SIZE * NPAGE)
-
-#define NTHREAD 3
+#include "config.h"
 
 atomic_int start_read;
 atomic_int stop_read;
 
-const char *fname = "tmp.txt";
-const char *cname = "compare.txt";
 
 char prefetch[LENGTH];
 char buf[NTHREAD][LENGTH];
@@ -55,14 +39,14 @@ void *thread_fn(void *args) {
   ThreadArgs* threadArg = (ThreadArgs*)args;
 	// this system call -paygo_open- tells the system 
 	// that this file has been applied paygo reference counting.
-	int file = syscall(MYOPEN, fname, O_RDONLY, S_IRWXU);
+	int file = syscall(OPEN, fname, O_RDONLY, S_IRWXU);
 
 	while(!atomic_load(&start_read));	
 
 	while(!atomic_load(&stop_read)) {
 		// this system call -paygo_pread- using paygo reference counting method
 		// instead of the linux's reference count(folio_try_get_rcu)
-		unsigned int x = syscall(MYCALL, file, buf[threadArg->tid], threadArg->length, threadArg->offset);
+		unsigned int x = syscall(PREAD, file, buf[threadArg->tid], threadArg->length, threadArg->offset);
 		iter++;
 		if(x != PAGE_SIZE * NPAGE) {
        perror("myread");

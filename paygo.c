@@ -7,27 +7,12 @@
 #include <string.h>
 #include <stdatomic.h>
 
+#include "config.h"
 
-#define MYOPEN 548
-#define MYCALL 549
-
-#define TIME 2
-
-#define PAGE_SIZE (4096)
-
-//1024 -> 4mb
-#define NPAGE (1024 * 64)
-
-#define OFFSET (0 * PAGE_SIZE)
-#define LENGTH (PAGE_SIZE * NPAGE)
-
-#define NTHREAD 3
 
 atomic_int start_read;
 atomic_int stop_read;
 
-const char *fname = "tmp.txt";
-const char *cname = "compare.txt";
 
 char prefetch[LENGTH];
 char buf[NTHREAD][LENGTH];
@@ -62,7 +47,7 @@ void *thread_fn(void *args) {
 	while(!atomic_load(&stop_read)) {
 		// this system call -paygo_pread- using paygo reference counting method
 		// instead of the linux's reference count(folio_try_get_rcu)
-		unsigned int x = syscall(MYCALL, file, buf[threadArg->tid], threadArg->length, threadArg->offset);
+		unsigned int x = syscall(MYPREAD, file, buf[threadArg->tid], threadArg->length, threadArg->offset);
 		iter++;
 		if(x != PAGE_SIZE * NPAGE) {
        perror("myread");
